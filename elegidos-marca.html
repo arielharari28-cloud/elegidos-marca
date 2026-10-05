@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Elegidos</title>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<style>
+  :root{
+    --bg:#f7f5f2;--surface:#fff;--surface2:#f0ede9;--border:#e2ddd8;--border2:#ccc8c2;
+    --text:#1f1d1a;--text2:#6b6660;--text3:#9c968f;--accent:#2d6a4f;--accent-bg:#e8f4ef;--red:#b42318;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+  button,input,select{font-family:inherit}
+  button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .wrap{max-width:1180px;margin:0 auto;padding:16px 16px calc(24px + env(safe-area-inset-bottom,0px))}
+  header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:5}
+  .brand{display:flex;align-items:baseline;gap:8px;min-width:0}
+  .brand-name{font-size:18px;font-weight:800;color:var(--accent);border:0;background:none;padding:0;cursor:pointer;text-align:left}
+  .brand-sub{font-size:13px;color:var(--text2)}
+  .user-chip{border:1px solid var(--border);background:var(--surface);border-radius:999px;padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer;color:var(--text);white-space:nowrap}
+  .empty{font-size:13px;color:var(--text2);padding:8px 0}
+  .loading{padding:40px 0;text-align:center;color:var(--text2)}
+
+  /* tableros */
+  .board{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px;margin-bottom:14px}
+  .board-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+  .board-title{font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px}
+  .count{font-size:11px;font-weight:700;background:var(--accent-bg);color:var(--accent);padding:2px 8px;border-radius:999px}
+  .board-actions{display:flex;gap:6px;align-items:center}
+  .btn-out{min-height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--accent);background:var(--surface);color:var(--accent);font-weight:700;font-size:12px;cursor:pointer}
+  .btn-icon{width:36px;height:36px;border-radius:999px;border:1px solid var(--border);background:var(--surface);cursor:pointer;font-size:14px}
+  .btn-main{min-height:46px;border:0;border-radius:12px;background:var(--accent);color:#fff;font-size:14px;font-weight:700;cursor:pointer;padding:0 18px}
+  .btn-main[disabled]{opacity:.45;cursor:default}
+  .btn-ghost{min-height:46px;border:1px solid var(--border2);border-radius:12px;background:var(--surface);color:var(--text);font-size:14px;font-weight:600;cursor:pointer;padding:0 18px}
+  .nuevo{width:100%;max-width:520px;min-height:48px;border:1.5px dashed var(--border2);border-radius:14px;background:transparent;color:var(--accent);font-size:14px;font-weight:700;cursor:pointer;display:block}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(122px,1fr));gap:8px}
+  .tile{position:relative;border:2px solid var(--border);border-radius:10px;overflow:hidden;background:var(--surface);display:flex;flex-direction:column}
+  .tile img{width:100%;aspect-ratio:3/4;object-fit:cover;display:block;cursor:pointer}
+  .sinfoto{width:100%;aspect-ratio:3/4;display:flex;align-items:center;justify-content:center;background:var(--surface2);color:var(--text3);font-size:1.5rem}
+  .info{padding:6px 7px 7px;display:flex;flex-direction:column;gap:2px}
+  .code{font-size:11px;font-weight:800}
+  .name{font-size:11px;font-weight:600;line-height:1.25}
+  .tela{font-size:10px;color:var(--text2)}
+  .origen{align-self:flex-start;margin-top:3px;font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;background:var(--surface2);color:var(--text2)}
+  .origen.propio{background:var(--accent-bg);color:var(--accent)}
+  .quitar{position:absolute;top:5px;right:5px;width:26px;height:26px;border-radius:999px;border:0;background:rgba(0,0,0,.55);color:#fff;font-size:15px;line-height:1;cursor:pointer}
+  .editar{position:absolute;top:5px;left:5px;width:26px;height:26px;border-radius:999px;border:0;background:rgba(255,255,255,.92);color:var(--text);font-size:12px;cursor:pointer}
+  .tile[draggable="true"]{cursor:grab}
+  .tile.dragging{opacity:.4}
+  .tile.drop-target{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-bg)}
+  .mover{display:none;gap:6px;padding:0 7px 7px}
+  .mover button{flex:1;min-height:34px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);font-size:16px;cursor:pointer;color:var(--text)}
+  .mover button[disabled]{opacity:.35}
+  @media (hover:none){ .mover{display:flex} }
+
+  /* sumar */
+  .sumar-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+  .volver{min-height:44px;border:0;background:transparent;color:var(--accent);font-weight:700;font-size:14px;cursor:pointer;padding:0}
+  .sumar-title{font-size:18px;font-weight:800;margin:4px 0 10px}
+  .search{width:100%;max-width:520px;padding:11px 12px;border:1px solid var(--border);border-radius:10px;font-size:14px;background:var(--surface)}
+  .filtros{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 12px}
+  .filtros select{min-height:36px;padding:0 10px;border:1px solid var(--border2);border-radius:999px;background:var(--surface);font-size:12px;font-weight:600;color:var(--text)}
+  .tile.sel{border-color:var(--accent)}
+  .check{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:999px;background:rgba(255,255,255,.9);border:1.5px solid var(--border2);color:#fff;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center}
+  .tile.sel .check{background:var(--accent);border-color:var(--accent)}
+  .tile.ya{opacity:.5}
+  .tile.ya .check{background:var(--accent-bg);border-color:var(--accent);color:var(--accent)}
+  .tile.selectable{cursor:pointer}
+  .sumar-bar{position:sticky;bottom:0;padding:12px 0 calc(12px + env(safe-area-inset-bottom,0px));background:var(--bg);display:flex;gap:8px;max-width:520px}
+  .sumar-bar .btn-main{flex:1}
+
+  /* modales */
+  .overlay{position:fixed;inset:0;background:rgba(31,29,26,.5);display:none;align-items:flex-end;justify-content:center;z-index:20}
+  .overlay.show{display:flex}
+  .sheet{background:var(--surface);border-radius:18px 18px 0 0;width:100%;max-width:480px;max-height:92vh;overflow-y:auto;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:12px}
+  @media (min-width:600px){ .overlay{align-items:center} .sheet{border-radius:18px} }
+  .sheet h2{margin:0;font-size:17px}
+  .field{display:flex;flex-direction:column;gap:4px}
+  .field label{font-size:12px;font-weight:600;color:var(--text2)}
+  .field input{padding:11px 12px;border:1px solid var(--border);border-radius:10px;font-size:14px}
+  .foto-pick{width:140px;aspect-ratio:3/4;border:1.5px dashed var(--border2);border-radius:12px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;color:var(--text2);font-size:12px;cursor:pointer;overflow:hidden;background:var(--surface2)}
+  .foto-pick img{width:100%;height:100%;object-fit:cover}
+  .sheet-actions{display:flex;gap:8px}
+  .sheet-actions button{flex:1}
+  .users{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+  .users button{min-height:48px;border:1px solid var(--border);border-radius:12px;background:var(--surface);font-size:15px;font-weight:600;cursor:pointer;color:var(--text)}
+  .tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:3px}
+  .tag{font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:999px;background:#fff3d6;color:#7a5200}
+  .tag.tipo{background:#e8eef7;color:#2c4a7a}
+  .tag.sugerido{opacity:.6;font-style:italic}
+  .etiquetar{border:0;background:none;color:var(--accent);font-size:11px;font-weight:700;padding:4px 0 0;cursor:pointer;text-align:left}
+  .agrupar{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);margin-bottom:10px;flex-wrap:wrap}
+  .agrupar button{min-height:32px;padding:0 12px;border-radius:999px;border:1px solid var(--border2);background:var(--surface);font-size:12px;font-weight:600;cursor:pointer;color:var(--text)}
+  .agrupar button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .grupo-title{font-size:13px;font-weight:700;margin:14px 0 8px;display:flex;align-items:center;gap:8px}
+  .grupo-title:first-of-type{margin-top:4px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{min-height:36px;padding:0 13px;border-radius:999px;border:1px solid var(--border2);background:var(--surface);font-size:13px;font-weight:600;cursor:pointer;color:var(--text);display:inline-flex;align-items:center;gap:6px}
+  .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .chip .x{font-size:15px;line-height:1;color:var(--red)}
+  .chip.on .x{color:#fff}
+  .linkbtn{border:0;background:none;color:var(--accent);font-size:13px;font-weight:700;cursor:pointer;padding:6px 0}
+  .tile .addfoto{width:100%;aspect-ratio:3/4;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:var(--surface2);color:var(--text2);font-size:11px;font-weight:600;border:0;cursor:pointer}
+  .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--text);color:#fff;padding:10px 16px;border-radius:999px;font-size:13px;font-weight:600;z-index:30;display:none}
+  .toast.show{display:block}
+  .photo-full{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:40;cursor:zoom-out}
+  .photo-full.show{display:flex}
+  .photo-full img{max-width:94vw;max-height:90vh;border-radius:8px}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <button class="brand-name" id="brand-name" onclick="renombrarMarca()" title="Cambiar nombre de la marca">Marca nueva</button>
+    <span class="brand-sub">Elegidos para promocionar</span>
+  </div>
+  <button class="user-chip" id="user-chip" onclick="cambiarUsuario()">Entrar</button>
+</header>
+<main class="wrap"><div id="content"><div class="loading">Cargando…</div></div></main>
+
+<!-- Elegir usuario -->
+<div class="overlay" id="login">
+  <div class="sheet">
+    <h2>¿Quién sos?</h2>
+    <div class="users" id="users"></div>
+  </div>
+</div>
+
+<!-- Producto propio -->
+<div class="overlay" id="prod-modal" onclick="if(event.target===this) cerrarProducto()">
+  <div class="sheet">
+    <h2 id="prod-title">Cargar producto nuevo</h2>
+    <div class="foto-pick" id="prod-foto" onclick="elegirFoto()"><span style="font-size:22px">📷</span><span>Agregar foto</span></div>
+    <div class="field"><label for="prod-code">Código</label><input id="prod-code" type="text" placeholder="Ej: MN-001"></div>
+    <div class="field"><label for="prod-name">Nombre</label><input id="prod-name" type="text" placeholder="Ej: Remera Cleo"></div>
+    <div class="field"><label for="prod-tela">Tela</label><input id="prod-tela" type="text" placeholder="Ej: Algodón con lycra"></div>
+    <div class="sheet-actions">
+      <button class="btn-ghost" onclick="cerrarProducto()">Cancelar</button>
+      <button class="btn-main" id="prod-save" onclick="guardarProducto()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Etiquetar un producto del tablero -->
+<div class="overlay" id="tag-modal" onclick="if(event.target===this) cerrarEtiquetas()">
+  <div class="sheet" id="tag-sheet"></div>
+</div>
+
+<div class="photo-full" id="photo-full" onclick="this.classList.remove('show')"><img id="photo-full-img" alt=""></div>
+<div class="toast" id="toast"></div>
+
+<script>
+firebase.initializeApp({
+  apiKey:"AIzaSyBqZ9ZkYfcDfXVEIGVsZM5_cByJkBXhVeA",
+  authDomain:"bynina-c1eec.firebaseapp.com",
+  databaseURL:"https://bynina-c1eec-default-rtdb.firebaseio.com",
+  projectId:"bynina-c1eec",
+  storageBucket:"bynina-c1eec.appspot.com",
+  messagingSenderId:"1059883614729",
+  appId:"1:1059883614729:web:bynina"
+});
+const db = firebase.database();
+const ROOT = 'marca_nueva_v1';                 // datos propios de esta app
+const CLOUDINARY_CLOUD = 'dt6ijkpyy', CLOUDINARY_PRESET = 'By Nina';
+const USUARIOS = ['ariel','meli'];
+
+// ---------- estado ----------
+let tableros = {}, productos = {}, config = {}, fotosPropias = {};
+const TIPOS_BASE = ['REMERAS','TOPS','BODYS','BUZOS','SWEATERS','TEJIDOS','JEANS','PANTALONES','SHORTS-MINIS','CONJUNTOS','BIKINIS','CAMPERAS','ACCESORIOS'];
+const COMUNICACION_BASE = ['Nuevos ingresos','Más vendidos','Básicos'];
+let agruparPor = {};          // por tablero: '' | 'tipo' | 'comunicacion'
+let etiq = null;              // {bid,k} del producto que se está etiquetando
+let editandoOpciones = false;
+let sections = {}, logi = {};                  // de la app de fábrica, solo lectura
+let cargado = { tableros:false, productos:false, sections:false };
+let usuario = null;
+try { usuario = localStorage.getItem('elegidos_usuario'); } catch(e) {}
+if(usuario && !['ariel','meli'].includes(usuario)) usuario = null;
+let vista = { modo:'tableros', board:null, sel:new Set(), busca:'', origen:'', tela:'' };
+let prodEdit = null, prodFoto = '', prodParaBoard = null;
+
+db.ref(`${ROOT}/tableros`).on('value', s => { tableros = s.val() || {}; cargado.tableros = true; render(); });
+db.ref(`${ROOT}/productos`).on('value', s => { productos = s.val() || {}; cargado.productos = true; render(); });
+db.ref(`${ROOT}/fotos`).on('value', s => { fotosPropias = s.val() || {}; render(); if(etiq) renderEtiquetas(); });
+db.ref(`${ROOT}/config`).on('value', s => { config = s.val() || {}; if(etiq) renderEtiquetas(); render(); document.getElementById('brand-name').textContent = config.nombre || 'Marca nueva'; document.title = (config.nombre || 'Marca nueva') + ' · Elegidos'; });
+db.ref('fabrica_v5/sections').on('value', s => { sections = s.val() || {}; cargado.sections = true; render(); });
+db.ref('fabrica_v5/logistica/items').on('value', s => { logi = s.val() || {}; render(); });
+
+// ---------- utilidades ----------
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function keySafe(s){ return String(s||'').trim().replace(/[.#$\[\]\/]/g,'_') || 'sin_codigo'; }
+function norm(c){ return String(c||'').trim().toUpperCase(); }
+function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove('show'),2200); }
+function verFoto(url){ document.getElementById('photo-full-img').src=url; document.getElementById('photo-full').classList.add('show'); }
+function cap(u){ return u ? u.charAt(0).toUpperCase()+u.slice(1) : ''; }
+
+// ---------- usuario ----------
+function pintarUsuario(){ document.getElementById('user-chip').textContent = usuario ? cap(usuario) + ' · cambiar' : 'Entrar'; }
+function cambiarUsuario(){
+  document.getElementById('users').innerHTML = USUARIOS.map(u=>`<button onclick="elegirUsuario('${u}')">${cap(u)}</button>`).join('');
+  document.getElementById('login').classList.add('show');
+}
+function elegirUsuario(u){ usuario=u; try{ localStorage.setItem('elegidos_usuario',u); }catch(e){} document.getElementById('login').classList.remove('show'); pintarUsuario(); render(); }
+pintarUsuario();
+if(!usuario) cambiarUsuario();
+
+function renombrarMarca(){
+  if(usuario!=='ariel') return;
+  const n = prompt('Nombre de la marca', config.nombre || '');
+  if(n && n.trim()) db.ref(`${ROOT}/config/nombre`).set(n.trim());
+}
+
+// ---------- tipo y comunicación ----------
+function listaTipos(){ return config.tipos ? Object.values(config.tipos) : TIPOS_BASE; }
+function listaComunicacion(){ return config.comunicaciones ? Object.values(config.comunicaciones) : COMUNICACION_BASE; }
+// Si nadie eligió el tipo, se sugiere por el nombre (se muestra en gris hasta que se confirme).
+const PISTAS_TIPO = [[/\bremer/i,'REMERAS'],[/\btop\b|\btops\b|musculosa|triang/i,'TOPS'],[/\bbody/i,'BODYS'],[/\bbuzo/i,'BUZOS'],[/sweater/i,'SWEATERS'],[/tejid|chomba/i,'TEJIDOS'],[/\bjean/i,'JEANS'],[/pantal/i,'PANTALONES'],[/\bshort|\bmini\b|pollera/i,'SHORTS-MINIS'],[/conjunto/i,'CONJUNTOS'],[/bikini|entera\b/i,'BIKINIS'],[/campera|chaleco/i,'CAMPERAS']];
+function tipoSugerido(name){ for(const [re,t] of PISTAS_TIPO){ if(re.test(name||'')) return t; } return ''; }
+function tipoDe(g, p){ return g.tipo ? { v:g.tipo, sug:false } : { v:tipoSugerido(p.name), sug:true }; }
+
+// ---------- catálogo de By Nina (solo lectura) ----------
+// Prendas terminadas de fábrica (Productos Perfectos) y prendas de proveedor (Logística),
+// una por código, con la foto más actual. Mismo criterio que "Productos del mes".
+function catalogoByNina(){
+  const out = {};
+  const prio = { mejora:3, revision_final:2, producto_perfecto:1 };
+  const mejor = (prev, score) => !prev || cmp(score, prev._score) > 0;
+  Object.values(sections).forEach(sec => {
+    if(!sec || !prio[sec.tipo]) return;
+    Object.values(sec.items||{}).forEach(it => {
+      if(!it || !it.code) return;
+      const key = keySafe(it.code);
+      const score = [it.foto?1:0, it.fotoAt||0, prio[sec.tipo], it.fechaIngreso||0];
+      const prev = out[key];
+      // solo cuenta como producto elegible si alguna vez llegó a Productos Perfectos
+      const enVenta = sec.tipo === 'producto_perfecto' || (prev && prev._enVenta);
+      if(mejor(prev, score)) out[key] = { key, origen:'fabrica', code:it.code, name:it.name||(prev&&prev.name)||'', tela:it.tela||(prev&&prev.tela)||'', foto:it.foto||'', _score:score, _enVenta: enVenta };
+      else { if(sec.tipo === 'producto_perfecto') prev._enVenta = true; if(!prev.name) prev.name = it.name||''; if(!prev.tela) prev.tela = it.tela||''; }
+    });
+  });
+  Object.keys(out).forEach(k => { if(!out[k]._enVenta) delete out[k]; });
+  Object.values(logi).forEach(it => {
+    if(!it || it.origen !== 'proveedor') return;
+    const key = 'prov_' + keySafe(it.code || it.name);
+    const score = [it.foto?1:0, it.fotoAt||0, 0, it.fecha_creado||0];
+    if(mejor(out[key], score)) out[key] = { key, origen:'proveedor', code:it.code||'', name:it.name||'', tela:it.tela||'', foto:it.foto||'', proveedor:it.proveedor||'', _score:score };
+  });
+  return out;
+}
+function cmp(a,b){ for(let i=0;i<a.length;i++){ if(a[i]!==b[i]) return a[i]-b[i]; } return 0; }
+
+// Producto tal como se ve hoy: los propios salen de esta app; los de By Nina, de la app de fábrica
+// (si ya no están, queda la copia guardada al sumarlo).
+function vivo(key, guardado, cat){
+  const r = vivoBase(key, guardado, cat);
+  return fotosPropias[key] ? { ...r, foto: fotosPropias[key] } : r;
+}
+function vivoBase(key, guardado, cat){
+  if(guardado && guardado.origen === 'propio'){
+    const p = productos[guardado.ref];
+    return p ? { ...guardado, code:p.code, name:p.name, tela:p.tela, foto:p.foto } : guardado;
+  }
+  const c = cat[key];
+  return c ? { ...guardado, foto: c.foto || guardado.foto, name: guardado.name || c.name, tela: guardado.tela || c.tela } : guardado;
+}
+
+function tileHtml(p, op){
+  op = op || {};
+  const img = p.foto ? `<img src="${esc(p.foto)}" loading="lazy" alt="${esc(p.name)}" ${op.noZoom?'':`onclick="event.stopPropagation();verFoto('${esc(p.foto)}')"`}>`
+    : (op.addFoto ? `<button class="addfoto" onclick="event.stopPropagation();${op.addFoto}"><span style="font-size:20px">📷</span>Agregar foto</button>` : '<div class="sinfoto">📷</div>');
+  const origen = p.origen==='propio' ? '<span class="origen propio">Propio</span>' : p.origen==='proveedor' ? '<span class="origen">Proveedor</span>' : '<span class="origen">By Nina</span>';
+  return `<div class="tile ${op.cls||''}" ${op.attrs||''}>
+    ${img}
+    ${op.badge||''}
+    <div class="info">
+      <span class="code">${esc(p.code || '(sin código)')}</span>
+      <span class="name">${esc(p.name)}</span>
+      <span class="tela">${esc(p.tela || (p.proveedor ? 'Prov. ' + p.proveedor : ''))}</span>
+      ${origen}
+      ${op.tags||''}
+    </div>
+    ${op.after||''}
+  </div>`;
+}
+
+// ---------- render ----------
+function render(){
+  const c = document.getElementById('content');
+  if(!cargado.tableros || !cargado.productos){ c.innerHTML = '<div class="loading">Cargando…</div>'; return; }
+  if(vista.modo === 'sumar') return renderSumar();
+  const cat = catalogoByNina();
+  const lista = Object.entries(tableros).sort((a,b)=>(a[1].creadoEn||0)-(b[1].creadoEn||0));
+  let html = '';
+  if(!lista.length) html += '<div class="empty">Todavía no hay tableros. Creá el primero para empezar a elegir productos.</div>';
+  lista.forEach(([bid,b]) => {
+    const items = Object.entries(b.items||{}).sort((x,y)=>(x[1].orden||0)-(y[1].orden||0));
+    const modo = agruparPor[bid] || '';
+    const tileDe = ([k,g],i) => {
+      const p = vivo(k, g, cat);
+      const t = tipoDe(g, p);
+      const tags = `<div class="tags">${t.v?`<span class="tag tipo ${t.sug?'sugerido':''}" title="${t.sug?'Sugerido por el nombre: tocá Etiquetar para confirmar':''}">${esc(t.v)}</span>`:''}${g.comunicacion?`<span class="tag">${esc(g.comunicacion)}</span>`:''}</div>
+        <button class="etiquetar" onclick="abrirEtiquetas('${bid}','${esc(k)}')">Etiquetar</button>`;
+      return tileHtml(p, {
+        tags,
+        addFoto: `subirFotoPropia('${esc(k)}')`,
+        attrs: `draggable="true" data-bid="${bid}" data-k="${esc(k)}" ondragstart="dragStart(event)" ondragend="dragEnd(event)" ondragover="dragOver(event)" ondrop="drop(event)"`,
+        after: `<button class="quitar" aria-label="Quitar del tablero" onclick="quitar('${bid}','${esc(k)}')">×</button>
+          ${p.origen==='propio' ? `<button class="editar" aria-label="Editar producto" title="Editar producto" onclick="abrirProducto('${esc(g.ref)}')">✎</button>` : ''}
+          <div class="mover"><button aria-label="Mover antes" ${i===0?'disabled':''} onclick="mover('${bid}','${esc(k)}',-1)">‹</button><button aria-label="Mover después" ${i===items.length-1?'disabled':''} onclick="mover('${bid}','${esc(k)}',1)">›</button></div>`
+      });
+    };
+    let tiles;
+    if(!modo){
+      tiles = items.length ? `<div class="grid">${items.map(tileDe).join('')}</div>` : '';
+    } else {
+      // agrupa respetando el orden manual dentro de cada grupo
+      const grupos = new Map();
+      items.forEach((e,i) => {
+        const [k,g] = e; const p = vivo(k,g,cat);
+        const clave = modo==='tipo' ? (tipoDe(g,p).v || 'Sin tipo') : (g.comunicacion || 'Sin comunicación');
+        if(!grupos.has(clave)) grupos.set(clave, []);
+        grupos.get(clave).push([e,i]);
+      });
+      const orden = modo==='tipo' ? listaTipos() : listaComunicacion();
+      const claves = [...grupos.keys()].sort((a,b)=>{ const ia=orden.indexOf(a), ib=orden.indexOf(b); return (ia<0?999:ia)-(ib<0?999:ib) || a.localeCompare(b,'es'); });
+      tiles = claves.map(c => `<div class="grupo-title">${esc(c)} <span class="count">${grupos.get(c).length}</span></div>
+        <div class="grid">${grupos.get(c).map(([e,i])=>tileDe(e,i)).join('')}</div>`).join('');
+    }
+    const agr = items.length ? `<div class="agrupar">Agrupar por:
+        <button class="${!modo?'on':''}" onclick="setAgrupar('${bid}','')">Nada</button>
+        <button class="${modo==='tipo'?'on':''}" onclick="setAgrupar('${bid}','tipo')">Tipo de producto</button>
+        <button class="${modo==='comunicacion'?'on':''}" onclick="setAgrupar('${bid}','comunicacion')">Comunicación</button>
+      </div>` : '';
+    html += `<section class="board">
+      <div class="board-head">
+        <div class="board-title">${esc(b.title)} <span class="count">${items.length}</span></div>
+        <div class="board-actions">
+          <button class="btn-out" onclick="abrirSumar('${bid}')">+ Sumar</button>
+          <button class="btn-icon" aria-label="Renombrar tablero" title="Renombrar" onclick="renombrar('${bid}')">✎</button>
+          <button class="btn-icon" aria-label="Borrar tablero" title="Borrar tablero" onclick="borrar('${bid}')">🗑</button>
+        </div>
+      </div>
+      ${agr}
+      ${tiles || '<div class="empty">Sin productos todavía. Tocá “+ Sumar”.</div>'}
+    </section>`;
+  });
+  html += `<button class="nuevo" onclick="nuevoTablero()">+ Nuevo tablero</button>`;
+  c.innerHTML = html;
+}
+
+// ---------- tableros ----------
+function nuevoTablero(){
+  const t = prompt('Nombre del tablero (ej: Elegidos, Para pautar, Lanzamiento)');
+  if(t && t.trim()) db.ref(`${ROOT}/tableros`).push({ title:t.trim(), creadoEn:Date.now(), creadoPor:usuario||'' });
+}
+function renombrar(bid){ const b=tableros[bid]; const t=prompt('Nuevo nombre', b.title); if(t&&t.trim()) db.ref(`${ROOT}/tableros/${bid}/title`).set(t.trim()); }
+function borrar(bid){ const b=tableros[bid]; if(confirm(`¿Borrar el tablero "${b.title}"? Los productos cargados no se borran.`)) db.ref(`${ROOT}/tableros/${bid}`).remove(); }
+function quitar(bid,k){ db.ref(`${ROOT}/tableros/${bid}/items/${k}`).remove(); }
+
+// ---------- agrupar y etiquetar ----------
+function setAgrupar(bid, m){ agruparPor[bid] = m; try{ localStorage.setItem('elegidos_agrupar', JSON.stringify(agruparPor)); }catch(e){} render(); }
+try{ agruparPor = JSON.parse(localStorage.getItem('elegidos_agrupar')||'{}') || {}; }catch(e){}
+function abrirEtiquetas(bid,k){ etiq={bid,k}; editandoOpciones=false; renderEtiquetas(); document.getElementById('tag-modal').classList.add('show'); }
+function cerrarEtiquetas(){ etiq=null; document.getElementById('tag-modal').classList.remove('show'); }
+function renderEtiquetas(){
+  if(!etiq) return;
+  const g = ((tableros[etiq.bid]||{}).items||{})[etiq.k];
+  if(!g){ cerrarEtiquetas(); return; }
+  const p = vivo(etiq.k, g, catalogoByNina());
+  const t = tipoDe(g, p);
+  const chips = (lista, actual, campo, editable) => lista.map(o => `<button class="chip ${actual===o?'on':''}" onclick="${editable&&editandoOpciones?`borrarOpcion('${campo}','${esc(o)}')`:`setEtiqueta('${campo}','${esc(o)}')`}">${esc(o)}${editable&&editandoOpciones?' <span class="x">×</span>':''}</button>`).join('');
+  document.getElementById('tag-sheet').innerHTML = `
+    <h2>${esc(p.code ? p.code + ' · ' : '')}${esc(p.name)}</h2>
+    <div class="field"><label>Tipo de producto${t.sug && t.v ? ' (sugerido: ' + esc(t.v) + ')' : ''}</label>
+      <div class="chips">${chips(listaTipos(), g.tipo||'', 'tipo', true)}</div></div>
+    <div class="field"><label>Comunicación</label>
+      <div class="chips">${chips(listaComunicacion(), g.comunicacion||'', 'comunicacion', true)}</div></div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap">
+      <button class="linkbtn" onclick="nuevaOpcion('comunicacion')">+ Nueva comunicación</button>
+      <button class="linkbtn" onclick="nuevaOpcion('tipo')">+ Nuevo tipo</button>
+      <button class="linkbtn" onclick="editandoOpciones=!editandoOpciones;renderEtiquetas()">${editandoOpciones?'Listo':'Borrar opciones'}</button>
+    </div>
+    <div class="field"><label>Foto</label>
+      <div style="display:flex;gap:16px;flex-wrap:wrap">
+        <button class="linkbtn" onclick="subirFotoPropia('${esc(etiq.k)}')">${fotosPropias[etiq.k]?'Cambiar foto':'Poner otra foto'}</button>
+        ${fotosPropias[etiq.k]?`<button class="linkbtn" style="color:var(--red)" onclick="quitarFotoPropia('${esc(etiq.k)}')">Volver a la foto original</button>`:''}
+      </div></div>
+    <div class="sheet-actions"><button class="btn-main" onclick="cerrarEtiquetas()">Listo</button></div>`;
+}
+function setEtiqueta(campo, val){
+  const g = ((tableros[etiq.bid]||{}).items||{})[etiq.k] || {};
+  db.ref(`${ROOT}/tableros/${etiq.bid}/items/${etiq.k}/${campo}`).set(g[campo]===val ? null : val);   // tocar de nuevo desmarca
+}
+function nuevaOpcion(campo){
+  const n = prompt(campo==='tipo' ? 'Nuevo tipo de producto (ej: VESTIDOS)' : 'Nueva comunicación (ej: Liquidación)');
+  if(!n || !n.trim()) return;
+  const val = campo==='tipo' ? n.trim().toUpperCase() : n.trim();
+  const lista = campo==='tipo' ? listaTipos() : listaComunicacion();
+  if(!lista.includes(val)) db.ref(`${ROOT}/config/${campo==='tipo'?'tipos':'comunicaciones'}`).set([...lista, val]);
+  setEtiqueta(campo, val);
+}
+function borrarOpcion(campo, val){
+  if(!confirm(`¿Sacar "${val}" de las opciones? Los productos que ya la tienen la mantienen.`)) return;
+  const lista = (campo==='tipo' ? listaTipos() : listaComunicacion()).filter(x=>x!==val);
+  db.ref(`${ROOT}/config/${campo==='tipo'?'tipos':'comunicaciones'}`).set(lista);
+}
+// Foto propia: sirve para prendas que en la app de fábrica no tienen foto (o para usar otra).
+// Se guarda por producto, así se ve igual en todos los tableros.
+function subirFotoPropia(k){
+  const input = document.createElement('input'); input.type='file'; input.accept='image/*';
+  input.onchange = async e => {
+    const file = e.target.files && e.target.files[0]; if(!file) return;
+    toast('Subiendo foto…');
+    try{
+      const fd = new FormData(); fd.append('file', file); fd.append('upload_preset', CLOUDINARY_PRESET);
+      const r = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, { method:'POST', body:fd });
+      const d = await r.json();
+      if(d.secure_url){ db.ref(`${ROOT}/fotos/${k}`).set(d.secure_url); toast('Foto cargada'); }
+      else toast('No se pudo subir la foto. Probá de nuevo.');
+    }catch(err){ toast('No se pudo subir la foto. Revisá la conexión.'); }
+  };
+  input.click();
+}
+function quitarFotoPropia(k){ db.ref(`${ROOT}/fotos/${k}`).remove(); }
+
+// ---------- orden manual ----------
+function ordenActual(bid){ return Object.entries((tableros[bid]||{}).items||{}).sort((x,y)=>(x[1].orden||0)-(y[1].orden||0)).map(([k])=>k); }
+function guardarOrden(bid,keys){ const u={}; keys.forEach((k,i)=>u[`${k}/orden`]=i); db.ref(`${ROOT}/tableros/${bid}/items`).update(u); }
+function mover(bid,k,d){ const keys=ordenActual(bid); const i=keys.indexOf(k), j=i+d; if(i<0||j<0||j>=keys.length) return; [keys[i],keys[j]]=[keys[j],keys[i]]; guardarOrden(bid,keys); }
+let drag=null;
+function dragStart(e){ const t=e.currentTarget; drag={bid:t.dataset.bid,k:t.dataset.k}; e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain',drag.k); setTimeout(()=>t.classList.add('dragging'),0); }
+function dragEnd(e){ e.currentTarget.classList.remove('dragging'); document.querySelectorAll('.drop-target').forEach(x=>x.classList.remove('drop-target')); drag=null; }
+function dragOver(e){ if(!drag||e.currentTarget.dataset.bid!==drag.bid) return; e.preventDefault(); document.querySelectorAll('.drop-target').forEach(x=>{ if(x!==e.currentTarget) x.classList.remove('drop-target'); }); e.currentTarget.classList.add('drop-target'); }
+function drop(e){
+  e.preventDefault(); if(!drag) return;
+  const t=e.currentTarget, bid=t.dataset.bid, target=t.dataset.k;
+  if(bid!==drag.bid||target===drag.k){ drag=null; return; }
+  const keys=ordenActual(bid).filter(k=>k!==drag.k);
+  const r=t.getBoundingClientRect(); const despues=e.clientX>r.left+r.width/2;
+  keys.splice(keys.indexOf(target)+(despues?1:0),0,drag.k);
+  guardarOrden(bid,keys); drag=null;
+}
+
+// ---------- sumar productos ----------
+function abrirSumar(bid){ vista={ modo:'sumar', board:bid, sel:new Set(), busca:'', origen:'', tela:'' }; render(); window.scrollTo(0,0); }
+function cerrarSumar(){ vista.modo='tableros'; vista.board=null; render(); }
+function toggleSel(k){ vista.sel.has(k) ? vista.sel.delete(k) : vista.sel.add(k); renderSumar(); }
+function catalogoCompleto(){
+  const cat = catalogoByNina();
+  Object.entries(productos).forEach(([pid,p]) => { cat['own_'+pid] = { key:'own_'+pid, origen:'propio', ref:pid, code:p.code||'', name:p.name||'', tela:p.tela||'', foto:p.foto||'', _orden:-(p.creadoEn||0) }; });
+  return cat;
+}
+function renderSumar(){
+  const c = document.getElementById('content');
+  const b = tableros[vista.board];
+  if(!b){ cerrarSumar(); return; }
+  const ya = b.items || {};
+  const todo = Object.values(catalogoCompleto()).map(p => fotosPropias[p.key] ? { ...p, foto: fotosPropias[p.key] } : p);
+  const telas = [...new Set(todo.map(p=>p.tela).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
+  const q = vista.busca.trim().toLowerCase();
+  const lista = todo
+    .filter(p => (!q || (p.code+' '+p.name+' '+(p.proveedor||'')).toLowerCase().includes(q)) && (!vista.origen || p.origen===vista.origen) && (!vista.tela || p.tela===vista.tela))
+    .sort((a,b) => (a.origen==='propio'?0:1)-(b.origen==='propio'?0:1) || String(a.code||a.name).localeCompare(String(b.code||b.name),'es',{numeric:true}));
+  const tiles = lista.map(p => {
+    const en = !!ya[p.key], sel = vista.sel.has(p.key);
+    return tileHtml(p, { noZoom:true, cls:`selectable ${sel?'sel':''} ${en?'ya':''}`, attrs: en ? '' : `onclick="toggleSel('${esc(p.key)}')"`, badge:`<span class="check">${sel||en?'✓':''}</span>` });
+  }).join('');
+  const opt = (v, txt, cur) => `<option value="${esc(v)}" ${v===cur?'selected':''}>${esc(txt)}</option>`;
+  c.innerHTML = `<div class="sumar-head">
+      <button class="volver" onclick="cerrarSumar()">‹ Volver</button>
+      <button class="btn-out" onclick="abrirProducto(null, '${vista.board}')">+ Cargar producto nuevo</button>
+    </div>
+    <div class="sumar-title">Sumar a «${esc(b.title)}»</div>
+    <input class="search" id="search" type="text" placeholder="Buscar por código o nombre" value="${esc(vista.busca)}"
+      oninput="vista.busca=this.value;renderSumar();const e=document.getElementById('search');e.focus();e.setSelectionRange(e.value.length,e.value.length)">
+    <div class="filtros">
+      <select onchange="vista.origen=this.value;renderSumar()" aria-label="Origen">
+        ${opt('','Todos los orígenes',vista.origen)}${opt('propio','Cargados acá',vista.origen)}${opt('fabrica','By Nina fábrica',vista.origen)}${opt('proveedor','By Nina proveedores',vista.origen)}
+      </select>
+      <select onchange="vista.tela=this.value;renderSumar()" aria-label="Tela">
+        ${opt('','Todas las telas',vista.tela)}${telas.map(t=>opt(t,t,vista.tela)).join('')}
+      </select>
+    </div>
+    ${!cargado.sections ? '<div class="empty">Cargando productos de By Nina…</div>' : ''}
+    <div class="grid">${tiles || '<div class="empty">No hay productos que coincidan. Probá con otro filtro o cargá uno nuevo.</div>'}</div>
+    <div class="sumar-bar"><button class="btn-main" ${vista.sel.size?'':'disabled'} onclick="agregarSel()">${vista.sel.size ? `Agregar ${vista.sel.size} producto${vista.sel.size>1?'s':''}` : 'Tocá los productos para elegirlos'}</button></div>`;
+}
+function agregarSel(){
+  const b = tableros[vista.board]; if(!b) return;
+  const cat = catalogoCompleto(); const u = {}; let orden = Object.keys(b.items||{}).length;
+  vista.sel.forEach(k => {
+    const p = cat[k]; if(!p) return;
+    u[k] = { origen:p.origen, ref:p.ref||'', code:p.code, name:p.name, tela:p.tela, foto:p.foto, proveedor:p.proveedor||'', orden:orden++, agregadoEn:Date.now(), agregadoPor:usuario||'' };
+  });
+  db.ref(`${ROOT}/tableros/${vista.board}/items`).update(u);
+  toast(`${vista.sel.size} agregado${vista.sel.size>1?'s':''}`);
+  cerrarSumar();
+}
+
+// ---------- productos propios ----------
+function abrirProducto(pid, paraBoard){
+  prodEdit = pid || null; prodParaBoard = paraBoard || null;
+  const p = pid ? (productos[pid] || {}) : {};
+  prodFoto = p.foto || '';
+  document.getElementById('prod-title').textContent = pid ? 'Editar producto' : 'Cargar producto nuevo';
+  document.getElementById('prod-code').value = p.code || '';
+  document.getElementById('prod-name').value = p.name || '';
+  document.getElementById('prod-tela').value = p.tela || '';
+  pintarFoto();
+  document.getElementById('prod-modal').classList.add('show');
+  setTimeout(()=>document.getElementById(pid?'prod-name':'prod-code').focus(), 50);
+}
+function cerrarProducto(){ document.getElementById('prod-modal').classList.remove('show'); prodEdit=null; prodParaBoard=null; }
+function pintarFoto(){
+  const el = document.getElementById('prod-foto');
+  el.innerHTML = prodFoto ? `<img src="${esc(prodFoto)}" alt="">` : '<span style="font-size:22px">📷</span><span>Agregar foto</span>';
+}
+function elegirFoto(){
+  const input = document.createElement('input'); input.type='file'; input.accept='image/*';
+  input.onchange = async e => {
+    const file = e.target.files && e.target.files[0]; if(!file) return;
+    const el = document.getElementById('prod-foto'); el.innerHTML = '<span>Subiendo…</span>';
+    const btn = document.getElementById('prod-save'); btn.disabled = true;
+    try{
+      const fd = new FormData(); fd.append('file', file); fd.append('upload_preset', CLOUDINARY_PRESET);
+      const r = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, { method:'POST', body:fd });
+      const d = await r.json();
+      if(d.secure_url) prodFoto = d.secure_url; else toast('No se pudo subir la foto. Probá de nuevo.');
+    }catch(err){ toast('No se pudo subir la foto. Revisá la conexión.'); }
+    btn.disabled = false; pintarFoto();
+  };
+  input.click();
+}
+function guardarProducto(){
+  const code = document.getElementById('prod-code').value.trim();
+  const name = document.getElementById('prod-name').value.trim();
+  const tela = document.getElementById('prod-tela').value.trim();
+  if(!name){ toast('Poné al menos el nombre'); document.getElementById('prod-name').focus(); return; }
+  const data = { code, name, tela, foto:prodFoto, actualizadoEn:Date.now() };
+  if(prodEdit){
+    db.ref(`${ROOT}/productos/${prodEdit}`).update(data);
+    toast('Producto guardado');
+  } else {
+    const ref = db.ref(`${ROOT}/productos`).push();
+    ref.set({ ...data, creadoEn:Date.now(), creadoPor:usuario||'' });
+    // si se cargó desde "Sumar", queda directo en ese tablero
+    if(prodParaBoard && tableros[prodParaBoard]){
+      const orden = Object.keys(tableros[prodParaBoard].items||{}).length;
+      db.ref(`${ROOT}/tableros/${prodParaBoard}/items/own_${ref.key}`).set({ origen:'propio', ref:ref.key, code, name, tela, foto:prodFoto, orden, agregadoEn:Date.now(), agregadoPor:usuario||'' });
+      toast('Producto cargado y sumado al tablero');
+    } else toast('Producto cargado');
+  }
+  cerrarProducto();
+}
+</script>
+</body>
+</html>
